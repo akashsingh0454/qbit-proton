@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  qbittorrent-protonvpn:
+    build: .
+    container_name: qbittorrent-protonvpn
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - "9090:9090" # qBittorrent Web UI
+      # You may need to map additional ports for qBittorrent P2P traffic (e.g., 6881:6881/tcp, 6881:6881/udp)
+      # These ports must be forwarded by ProtonVPN. Check your ProtonVPN account for port forwarding options.
+      # Example:
+      # - "6881:6881"
+      # - "6881:6881/udp"
+    volumes:
+      - ./protonvpn-config:/etc/openvpn/protonvpn:ro # Mount your .ovpn file and any related certs here
+      - ./qbittorrent-config:/config # qBittorrent configuration, database, logs
+      - ./downloads:/downloads # qBittorrent download location
+      # Optional: Mount local timezone
+      # - /etc/localtime:/etc/localtime:ro
+    environment:
+      # --- ProtonVPN Credentials ---
+      # Create a .env file in the same directory as this docker-compose.yml
+      # or set these variables in your shell environment.
+      # Example .env file:
+      # PROTONVPN_USER=your_protonvpn_username
+      # PROTONVPN_PASS=your_protonvpn_password
+      # PROTONVPN_SERVER=ch-us-ny-01.protonvpn.net # Example server, replace with your desired server hostname from the .ovpn filename
+      - PROTONVPN_USER=${PROTONVPN_USER:?ProtonVPN username not set}
+      - PROTONVPN_PASS=${PROTONVPN_PASS:?ProtonVPN password not set}
+      # The PROTONVPN_SERVER variable is used by the start.sh script to identify the config,
+      # but the script currently just picks the first .ovpn file.
+      # Ensure the .ovpn file in ./protonvpn-config is for the server you want to use.
+      - PROTONVPN_SERVER=${PROTONVPN_SERVER:?ProtonVPN server not set}
+
+      # --- qBittorrent Settings ---
+      - QBITTORRENT_WEBUI_PORT=9090
+
+      # --- User/Group IDs ---
+      # Set these to your host user's ID and group ID to avoid permission issues with volumes.
+      # Find them by running `id -u` and `id -g` on your host.
+      # These are not directly used by the current Dockerfile/start.sh but are good practice to include.
+      # The qbittorrent user inside the container has UID/GID determined at image build.
+      # For data persistence, ownership of /config and /downloads volumes should match.
+      # One way to handle this is to chown the volumes on the host before starting.
+      # Alternatively, the entrypoint script could chown at startup if PUID/PGID are passed.
+      # - PUID=1000
+      # - PGID=1000
+
+      # --- Timezone (Optional) ---
+      # - TZ=America/New_York
+    sysctls:
+      # Common requirement for VPNs, may or may not be strictly needed for ProtonVPN
+      - net.ipv6.conf.all.disable_ipv6=0
+    restart: unless-stopped
+    # For debugging, you might want to use:
+    # stdin_open: true
+    # tty: true
